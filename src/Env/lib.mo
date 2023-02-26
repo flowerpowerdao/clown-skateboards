@@ -20,7 +20,7 @@ module {
   public let ecscrowDelay : Time.Time = 120_000_000_000; // 120 seconds
   public let collectionSize : Nat32 = 2_000;
 
-  public let salePrice : Nat64 = 1_350_000_000; // 13.5 ICP
+  public let salePrice : Nat64 = 1_000_000; // 13.5 ICP
 
   public let salesDistribution : [(ExtCore.AccountIdentifier, Nat64)] = [
     (clownAddress, 45000),
