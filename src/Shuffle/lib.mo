@@ -8,17 +8,37 @@ import Utils "../utils";
 import Env "../Env";
 
 module {
-  public class Factory(state : Types.StableState, deps : Types.Dependencies, consts : Types.Constants) {
+  public class Factory(deps : Types.Dependencies, consts : Types.Constants) {
 
     /*********
     * STATE *
     *********/
 
-    private var _isShuffled : Bool = state._isShuffledState;
+    var _isShuffled = false;
 
     public func toStable() : Types.StableState {
       return {
         _isShuffledState = _isShuffled;
+      };
+    };
+
+    public func toStableChunk(chunkSize : Nat, chunkIndex : Nat) : Types.StableChunk {
+      ?#v1({
+        isShuffled = _isShuffled;
+      });
+    };
+
+    public func loadStableChunk(chunk : Types.StableChunk) {
+      switch (chunk) {
+        // TODO: remove after upgrade vvv
+        case (?#legacy(state)) {
+          _isShuffled := state._isShuffledState;
+        };
+        // TODO: remove after upgrade ^^^
+        case (?#v1(data)) {
+          _isShuffled := data.isShuffled;
+        };
+        case (null) {};
       };
     };
 
@@ -28,8 +48,8 @@ module {
 
     //*** ** ** ** ** ** ** ** ** * * PUBLIC INTERFACE * ** ** ** ** ** ** ** ** ** ** /
 
-    public func shuffleAssets(caller : Principal) : async () {
-      assert (caller == consts.minter and Env.delayedReveal and not _isShuffled);
+    public func shuffleAssets() : async () {
+      assert (Env.delayedReveal and not _isShuffled);
       // get a random seed from the IC
       let seed : Blob = await Random.blob();
       // use that seed to create random number generator
@@ -38,7 +58,7 @@ module {
       var currentIndex : Nat = deps._Assets.size();
 
       // shuffle the assets array using the random beacon
-      while (currentIndex != 1) {
+      while (currentIndex > 1) {
         // use a random number to calculate a random index between 0 and currentIndex
         var randomIndex = randGen.next() % currentIndex;
         assert (randomIndex < currentIndex);
@@ -64,7 +84,7 @@ module {
       // get the number of available tokens
       var currentIndex : Nat = tokens.size();
 
-      while (currentIndex != 1) {
+      while (currentIndex > 1) {
         // use a random number to calculate a random index between 0 and currentIndex
         var randomIndex = randGen.next() % currentIndex;
         assert (randomIndex < currentIndex);

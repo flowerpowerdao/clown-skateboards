@@ -2,6 +2,8 @@ import Time "mo:base/Time";
 import ExtCore "../toniq-labs/ext/Core";
 
 module {
+  public let test = $test; // must be 'false'
+  public let restoreEnabled = $restoreEnabled; // must be 'false' (see backup/README.md for details)
   public let timersInterval = #seconds($timersInterval);
 
   let beneficiary0 : ExtCore.AccountIdentifier = $beneficiary0;
@@ -9,10 +11,10 @@ module {
 
   public let collectionName = "Pineapple Punks";
   public let placeholderContentLength = "1053832";
-  public let ecscrowDelay : Time.Time = $ecscrowDelay; // 120 seconds
+  public let escrowDelay : Time.Time = $escrowDelay; // 120 seconds
   public let collectionSize : Nat32 = $collectionSize;
 
-  public let salePrice : Nat64 = 700000000;
+  public let salePrice : Nat64 = $salePrice;
 
   public let salesDistribution : [(ExtCore.AccountIdentifier, Nat64)] = [
     (beneficiary0, $salesDistribution0),
@@ -30,6 +32,13 @@ module {
   public let whitelistTime : Time.Time = $whitelistTime; // Period for WL only discount. Set to publicSaleStart for no exclusive period
   public let marketDelay : Time.Time = $marketDelay; // How long to delay market opening (2 days after whitelist sale started or when sold out)
 
+  // open edition
+  // true - no definite collection size and can be minted in an ongoing effort until 'saleEnd' (need to set collectionSize = 0)
+  // false - fixed collection size
+  public let openEdition = $openEdition;
+  // when the sale ends (set to '0' if openEdition = false)
+  public let saleEnd : Time.Time = $saleEnd;
+
   public type WhitelistSlot = {
     start : Time.Time;
     end : Time.Time;
@@ -46,9 +55,15 @@ module {
     end = $whitelistSlot2_end;
   };
 
-  // true - assets will be revealed after manually calling 'shuffleAssets'
+  // true - assets will be revealed after 'revealDelay'
   // false - assets will be revealed immediately and assets shuffling will be disabled
   public let delayedReveal = $delayedReveal;
+  // How long to delay assets shuffling and reveal (starting after 'publicSaleStart')
+  public let revealDelay : Time.Time = $revealDelay; // 86400000000000 == 24 hours
+
+  // true - the entire collection will consists of only one asset, meaning all NFTs look the same
+  // false - there are at least two different assets in the collection
+  public let singleAssetCollection = $singleAssetCollection;
 
   public let whitelistOneTimeOnly : Bool = $whitelistOneTimeOnly; // Whitelist addresses are removed after purchase
   public let whitelistDiscountLimited : Bool = $whitelistDiscountLimited; // If the whitelist discount is limited to the whitelist period only. If no whitelist period this is ignored

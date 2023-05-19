@@ -6,11 +6,10 @@ import ExtCore "../toniq-labs/ext/Core";
 import Shuffle "../Shuffle";
 import Tokens "../Tokens";
 import Disburser "../Disburser";
-import LedgerTypes "../Ledger/types";
 import Env "../Env"
 
 module {
-
+  // TODO: remove after upgrade
   public func newStableState() : StableState {
     return {
       _saleTransactionsState : [SaleTransaction] = [];
@@ -25,6 +24,26 @@ module {
     };
   };
 
+  public type StableChunk = ?{
+    #legacy: StableState; // TODO: remove after upgrade
+    #v1: {
+      saleTransactionCount : Nat;
+      saleTransactionChunk : [SaleTransaction];
+      salesSettlements : [(AccountIdentifier, Sale)];
+      failedSales : [(AccountIdentifier, SubAccount)];
+      tokensForSale : [TokenIndex];
+      whitelist : [(Nat64, AccountIdentifier, WhitelistSlot)];
+      soldIcp : Nat64;
+      sold : Nat;
+      totalToSell : Nat;
+      nextSubAccount : Nat;
+    };
+    #v1_chunk: {
+      saleTransactionChunk : [SaleTransaction];
+    };
+  };
+
+  // TODO: remove after upgrade
   public type StableState = {
     _saleTransactionsState : [SaleTransaction];
     _salesSettlementsState : [(AccountIdentifier, Sale)];
@@ -45,25 +64,20 @@ module {
   };
 
   public type Constants = {
-    LEDGER_CANISTER : LedgerTypes.LEDGER_CANISTER;
     minter : Principal;
   };
 
   public type WhitelistSlot = Env.WhitelistSlot;
-
   public type AccountIdentifier = ExtCore.AccountIdentifier;
-
   public type TokenIdentifier = ExtCore.TokenIdentifier;
-
   public type SubAccount = ExtCore.SubAccount;
-
   public type CommonError = ExtCore.CommonError;
-
   public type TokenIndex = ExtCore.TokenIndex;
-
   public type Time = Time.Time;
 
-  public type Tokens = LedgerTypes.Tokens;
+  public type Tokens = {
+    e8s : Nat64;
+  };
 
   public type Sale = {
     tokens : [TokenIndex];
@@ -93,5 +107,6 @@ module {
     whitelist : Bool;
     totalToSell : Nat;
     bulkPricing : [(Nat64, Nat64)];
+    openEdition : Bool;
   };
 };

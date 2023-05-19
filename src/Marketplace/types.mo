@@ -7,10 +7,9 @@ import TokenTypes "../Tokens/types";
 import Tokens "../Tokens";
 import Sale "../Sale";
 import Disburser "../Disburser";
-import LedgerTypes "../Ledger/types";
 
 module {
-
+  // TODO: remove after upgrade
   public func newStableState() : StableState {
     return {
       _transactionsState : [Transaction] = [];
@@ -20,23 +19,31 @@ module {
     };
   };
 
+  public type StableChunk = ?{
+    #legacy: StableState; // TODO: remove after upgrade
+    #v1: {
+      transactionCount : Nat;
+      transactionChunk : [Transaction];
+      tokenSettlement : [(TokenIndex, Settlement)];
+      tokenListing : [(TokenIndex, Listing)];
+      frontends : [(Text, Frontend)];
+    };
+    #v1_chunk: {
+      transactionChunk : [Transaction];
+    };
+  };
+
   public type Frontend = {
     fee : Nat64;
     accountIdentifier : AccountIdentifier;
   };
 
   public type AccountIdentifier = ExtCore.AccountIdentifier;
-
   public type Time = Time.Time;
-
   public type TokenIdentifier = TokenTypes.TokenIdentifier;
-
   public type Metadata = TokenTypes.Metadata;
-
   public type SubAccount = ExtCore.SubAccount;
-
   public type CommonError = ExtCore.CommonError;
-
   public type TokenIndex = ExtCore.TokenIndex;
 
   public type Transaction = {
@@ -71,6 +78,7 @@ module {
     frontendIdentifier : ?Text;
   };
 
+  // TODO: remove after upgrade
   public type StableState = {
     _transactionsState : [Transaction];
     _tokenSettlementState : [(TokenIndex, Settlement)];
@@ -86,7 +94,6 @@ module {
   };
 
   public type Constants = {
-    LEDGER_CANISTER : LedgerTypes.LEDGER_CANISTER;
     minter : Principal;
   };
 
