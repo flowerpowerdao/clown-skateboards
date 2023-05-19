@@ -19,7 +19,7 @@ module {
 
   public let collectionName = "Clown Skateboards";
   public let placeholderContentLength = "569111";
-  public let ecscrowDelay : Time.Time = 120_000_000_000; // 120 seconds
+  public let escrowDelay : Time.Time = 120_000_000_000; // 120 seconds
   public let collectionSize : Nat32 = 2_000;
 
   public let salePrice : Nat64 = 1_350_000_000; // 13.5 ICP
