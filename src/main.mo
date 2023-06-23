@@ -33,7 +33,7 @@ import DisburserTypes "Disburser/types";
 import Utils "./utils";
 import Types "./types";
 
-shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs: Types.InitArgs) = myCanister {
+shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs : Types.InitArgs) = myCanister {
   let config = {
     initArgs with
     canister = cid;
@@ -190,12 +190,15 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
 
     let timersInterval = Utils.toNanos(Option.get(config.timersInterval, #seconds(60)));
 
-    _timerId := Timer.recurringTimer(#nanoseconds(timersInterval), func() : async () {
-      ignore cronSettlements();
-      ignore cronDisbursements();
-      ignore cronSalesSettlements();
-      ignore cronFailedSales();
-    });
+    _timerId := Timer.recurringTimer(
+      #nanoseconds(timersInterval),
+      func() : async () {
+        ignore cronSettlements();
+        ignore cronDisbursements();
+        ignore cronSalesSettlements();
+        ignore cronFailedSales();
+      },
+    );
 
     if (Utils.toNanos(config.revealDelay) > 0 and not _Shuffle.isShuffled()) {
       let revealTime = config.publicSaleStart + Utils.toNanos(config.revealDelay);
@@ -203,8 +206,11 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
 
       // add random delay up to 60 minutes
       let minute = 1_000_000_000 * 60;
-      let randDelay = Int.abs(Time.now() % 60 * minute);
-
+      let randDelay = if (delay > 60 * minute) {
+        Int.abs(Time.now() % 60 * minute);
+      } else {
+        0;
+      };
       _revealTimerId := Timer.setTimer(
         #nanoseconds(delay + randDelay),
         func() : async () {
@@ -262,7 +268,7 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
   public func cronDisbursements() : async () {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
-    await _Disburser.cronDisbursements();
+    await* _Disburser.cronDisbursements();
   };
 
   // Cap
@@ -316,11 +322,25 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
     _Assets.updateThumb(caller, name, file);
   };
 
-  public shared ({ caller }) func addAsset(asset : AssetsTypes.Asset) : async Nat {
+  public shared ({ caller }) func addPlaceholder(asset : AssetsTypes.AssetV2) : async () {
+    _trapIfRestoreEnabled();
+    canistergeekMonitor.collectMetrics();
+    // checks caller == minter
+    _Assets.addPlaceholder(caller, asset);
+  };
+
+  public shared ({ caller }) func addAsset(asset : AssetsTypes.AssetV2) : async Nat {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // checks caller == minter
     _Assets.addAsset(caller, asset);
+  };
+
+  public shared ({ caller }) func addAssets(assets : [AssetsTypes.AssetV2]) : async Nat {
+    _trapIfRestoreEnabled();
+    canistergeekMonitor.collectMetrics();
+    // checks caller == minter
+    _Assets.addAssets(caller, assets);
   };
 
   // Shuffle
@@ -360,11 +380,11 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
     await _Sale.shuffleTokensForSale(caller);
   };
 
-  public shared ({ caller }) func airdropTokens(startIndex : Nat) : async () {
+  public shared ({ caller }) func airdropTokens() : async () {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // checks caller == minter
-    _Sale.airdropTokens(caller, startIndex);
+    _Sale.airdropTokens(caller);
   };
 
   public shared ({ caller }) func enableSale() : async Nat {
@@ -384,19 +404,19 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // no caller check, token will be sent to the address that was set on 'reserve'
-    await _Sale.retrieve(caller, paymentaddress);
+    await* _Sale.retrieve(caller, paymentaddress);
   };
 
   public shared ({ caller }) func cronSalesSettlements() : async () {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
-    await _Sale.cronSalesSettlements(caller);
+    await* _Sale.cronSalesSettlements(caller);
   };
 
   public func cronFailedSales() : async () {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
-    await _Sale.cronFailedSales();
+    await* _Sale.cronFailedSales();
   };
 
   // queries
@@ -434,7 +454,7 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // no caller check, anyone can lock
-    await _Marketplace.lock(caller, tokenid, price, address, subaccount, frontendIdentifier);
+    await* _Marketplace.lock(caller, tokenid, price, address, subaccount, frontendIdentifier);
   };
 
   // check payment and settle transfer token to user
@@ -442,21 +462,21 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // no caller check, token will be sent to the address that was set on 'lock'
-    await _Marketplace.settle(caller, tokenid);
+    await* _Marketplace.settle(caller, tokenid);
   };
 
   public shared ({ caller }) func list(request : MarketplaceTypes.ListRequest) : async Result.Result<(), MarketplaceTypes.CommonError> {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // checks caller == token_owner
-    await _Marketplace.list(caller, request);
+    await* _Marketplace.list(caller, request);
   };
 
   public shared ({ caller }) func cronSettlements() : async () {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
     // caller will be stored to the Cap event, is that ok?
-    await _Marketplace.cronSettlements(caller);
+    await* _Marketplace.cronSettlements(caller);
   };
 
   public shared func frontends() : async [(Text, MarketplaceTypes.Frontend)] {
@@ -523,7 +543,7 @@ shared ({ caller = init_minter }) actor class Canister(cid : Principal, initArgs
   public shared ({ caller }) func transfer(request : EXTTypes.TransferRequest) : async EXTTypes.TransferResponse {
     _trapIfRestoreEnabled();
     canistergeekMonitor.collectMetrics();
-    await _EXT.transfer(caller, request);
+    await* _EXT.transfer(caller, request);
   };
 
   // queries

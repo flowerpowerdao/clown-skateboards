@@ -86,8 +86,8 @@ Typically, total <= 10%
 Example:
 ```candid
 royalties = vec {
-  record { "58842a4424f706f3465e8d9aa7bb6507a1c2d8810b1a9f43f0c94087b62b86ed"; 500 }; // 5%
-  record { "24fc8fbcf345bc6a2ba14bbd323fc041c8ad400cc48b1e69cb53dd612afd0d81"; 300 }; // 3%
+  record { "58842a4424f706f3465e8d9aa7bb6507a1c2d8810b1a9f43f0c94087b62b86ed"; 500 }; // 0.5%
+  record { "24fc8fbcf345bc6a2ba14bbd323fc041c8ad400cc48b1e69cb53dd612afd0d81"; 300 }; // 0.3%
 };
 ```
 
@@ -200,6 +200,15 @@ dutchAuction = opt record {
   reservePrice = 500000000; // reserve price is 5 icp
   interval = 60000000000; // 1 minute
 };
+```
+
+## Legacy Placeholders
+Default `null`
+
+```candid
+// true - the collection has the placeholder stored at the 0 index of the asset array
+// false - the placeholder has its on stable variable in the canister
+legacyPlaceholder = opt false
 ```
 
 ## Restore

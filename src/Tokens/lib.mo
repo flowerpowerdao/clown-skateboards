@@ -26,6 +26,9 @@ module {
     var _supply = 0 : Types.Balance;
 
     public func toStableChunk(chunkSize : Nat, chunkIndex : Nat) : Types.StableChunk {
+      if (chunkIndex != 0) {
+        return null;
+      };
       ?#v1({
         tokenMetadata = Iter.toArray(_tokenMetadata.entries());
         owners = Iter.toArray(
@@ -115,9 +118,7 @@ module {
     };
 
     public func mintNextToken() {
-      /* for delayed reveal we start with asset 1, as index 0 contains the placeholder and is not being shuffled */
-      let startIndex : Nat32 = if (Utils.toNanos(config.revealDelay) > 0) { 1 } else { 0 };
-      putTokenMetadata(getNextTokenId(), #nonfungible({ metadata = ?Utils.nat32ToBlob(if (config.singleAssetCollection == ?true) startIndex else getNextTokenId() + startIndex) }));
+      putTokenMetadata(getNextTokenId(), #nonfungible({ metadata = ?Utils.nat32ToBlob(if (config.singleAssetCollection == ?true) 0 else getNextTokenId()) }));
       transferTokenToUser(getNextTokenId(), "0000");
       incrementSupply();
       incrementNextTokenId();

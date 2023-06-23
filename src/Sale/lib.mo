@@ -41,14 +41,14 @@ module {
     var _salesSettlements = TrieMap.TrieMap<Types.AccountIdentifier, Types.Sale>(AID.equal, AID.hash);
     var _failedSales = Buffer.Buffer<(Types.AccountIdentifier, Types.SubAccount)>(0);
     var _tokensForSale = Buffer.Buffer<Types.TokenIndex>(0);
-    var _whitelistSpots = TrieMap.TrieMap<Types.WhitelistSpotId, Types.WhitelistSpotUsed>(Text.equal, Text.hash);
+    var _whitelistSpots = TrieMap.TrieMap<Types.WhitelistSpotId, Types.RemainingSpots>(Text.equal, Text.hash);
     var _soldIcp = 0 : Nat64;
     var _sold = 0 : Nat;
     var _totalToSell = 0 : Nat;
     var _nextSubAccount = 0 : Nat;
 
     public func getChunkCount(chunkSize : Nat) : Nat {
-      var count: Nat = _saleTransactions.size() / chunkSize;
+      var count : Nat = _saleTransactions.size() / chunkSize;
       if (_saleTransactions.size() % chunkSize != 0) {
         count += 1;
       };
@@ -59,14 +59,13 @@ module {
       let start = Nat.min(_saleTransactions.size(), chunkSize * chunkIndex);
       let count = Nat.min(chunkSize, _saleTransactions.size() - start);
       let saleTransactionChunk = if (_saleTransactions.size() == 0 or count == 0) {
-        []
-      }
-      else {
+        [];
+      } else {
         Buffer.toArray(Buffer.subBuffer(_saleTransactions, start, count));
       };
 
       if (chunkIndex == 0) {
-        ?#v2({
+        ? #v2({
           saleTransactionCount = _saleTransactions.size();
           saleTransactionChunk;
           salesSettlements = Iter.toArray(_salesSettlements.entries());
@@ -78,11 +77,9 @@ module {
           totalToSell = _totalToSell;
           nextSubAccount = _nextSubAccount;
         });
-      }
-      else if (chunkIndex < getChunkCount(chunkSize)) {
-        return ?#v2_chunk({ saleTransactionChunk });
-      }
-      else {
+      } else if (chunkIndex < getChunkCount(chunkSize)) {
+        return ? #v2_chunk({ saleTransactionChunk });
+      } else {
         null;
       };
     };
@@ -90,7 +87,7 @@ module {
     public func loadStableChunk(chunk : Types.StableChunk) {
       switch (chunk) {
         // v1
-        case (?#v1(data)) {
+        case (? #v1(data)) {
           _saleTransactions := Buffer.Buffer<Types.SaleTransaction>(data.saleTransactionCount);
           _saleTransactions.append(Buffer.fromArray(data.saleTransactionChunk));
           // _salesSettlements := TrieMap.fromEntries(data.salesSettlements.vals(), AID.equal, AID.hash);
@@ -102,11 +99,11 @@ module {
           _totalToSell := data.totalToSell;
           _nextSubAccount := data.nextSubAccount;
         };
-        case (?#v1_chunk(data)) {
+        case (? #v1_chunk(data)) {
           _saleTransactions.append(Buffer.fromArray(data.saleTransactionChunk));
         };
         // v2
-        case (?#v2(data)) {
+        case (? #v2(data)) {
           _saleTransactions := Buffer.Buffer<Types.SaleTransaction>(data.saleTransactionCount);
           _saleTransactions.append(Buffer.fromArray(data.saleTransactionChunk));
           _salesSettlements := TrieMap.fromEntries(data.salesSettlements.vals(), AID.equal, AID.hash);
@@ -118,7 +115,7 @@ module {
           _totalToSell := data.totalToSell;
           _nextSubAccount := data.nextSubAccount;
         };
-        case (?#v2_chunk(data)) {
+        case (? #v2_chunk(data)) {
           _saleTransactions.append(Buffer.fromArray(data.saleTransactionChunk));
         };
         case (null) {};
@@ -183,21 +180,13 @@ module {
       _tokensForSale := deps._Shuffle.shuffleTokens(_tokensForSale, seed);
     };
 
-    public func airdropTokens(caller : Principal, startingIndex : Nat) : () {
+    public func airdropTokens(caller : Principal) : () {
       assert (caller == config.minter and _totalToSell == 0);
 
       // airdrop tokens
-      var temp = 0;
-      label airdrop for (a in config.airdrop.vals()) {
-        if (temp < startingIndex) {
-          temp += 1;
-          continue airdrop;
-        } else if (temp >= startingIndex +1500) {
-          break airdrop;
-        };
+      for (a in config.airdrop.vals()) {
         // nextTokens() updates _tokensForSale, removing consumed tokens
         deps._Tokens.transferTokenToUser(nextTokens(1)[0], a);
-        temp += 1;
       };
     };
 
@@ -223,8 +212,7 @@ module {
       if (Time.now() < config.publicSaleStart) {
         if (inPendingWhitelist and not inOngoingWhitelist) {
           return #err("The sale has not started yet");
-        }
-        else if (not isWhitelisted(address)) {
+        } else if (not isWhitelisted(address)) {
           return #err("The public sale has not started yet");
         };
       };
@@ -234,6 +222,9 @@ module {
       };
       if (availableTokens() < Nat64.toNat(quantity)) {
         return #err("Not enough NFTs available!");
+      };
+      if (quantity == 0) {
+        return #err("Quantity must be greater than 0");
       };
       var total : Nat64 = (getAddressPrice(address) * quantity);
       var bp = getAddressBulkPrice(address);
@@ -289,7 +280,7 @@ module {
       #ok((paymentAddress, total));
     };
 
-    public func retrieve(caller : Principal, paymentaddress : Types.AccountIdentifier) : async Result.Result<(), Text> {
+    public func retrieve(caller : Principal, paymentaddress : Types.AccountIdentifier) : async* Result.Result<(), Text> {
       if (Option.isNull(_salesSettlements.get(paymentaddress))) {
         return #err("Nothing to settle");
       };
@@ -303,6 +294,7 @@ module {
             // this should never happen because account ids are always created from within the
             // canister which should guarantee that they are valid and we are able to decode them
             // to [Nat8]
+            _salesSettlements.delete(paymentaddress);
             return #err("Failed to decode payment address");
           };
         };
@@ -314,6 +306,11 @@ module {
         case (null) {
           return #err("Nothing to settle");
         };
+      };
+
+      if (settlement.tokens.size() == 0) {
+        _salesSettlements.delete(paymentaddress);
+        return #err("Nothing tokens to settle for");
       };
 
       if (response.e8s >= settlement.price) {
@@ -396,7 +393,7 @@ module {
       };
     };
 
-    public func cronSalesSettlements(caller : Principal) : async () {
+    public func cronSalesSettlements(caller : Principal) : async* () {
       // _saleSattlements can potentially be really big, we have to make sure
       // we dont get out of cycles error or error that outgoing calls queue is full.
       // This is done by adding the await statement.
@@ -405,7 +402,7 @@ module {
         switch (expiredSalesSettlements().keys().next()) {
           case (?paymentAddress) {
             try {
-              ignore (await retrieve(caller, paymentAddress));
+              ignore (await* retrieve(caller, paymentAddress));
             } catch (e) {};
           };
           case null break settleLoop;
@@ -413,7 +410,7 @@ module {
       };
     };
 
-    public func cronFailedSales() : async () {
+    public func cronFailedSales() : async* () {
       label failedSalesLoop while (true) {
         let last = _failedSales.removeLast();
         switch (last) {
@@ -485,7 +482,7 @@ module {
 
     public func salesSettings(address : Types.AccountIdentifier) : Types.SaleSettings {
       var startTime = config.publicSaleStart;
-      var endTime: Time.Time = 0;
+      var endTime : Time.Time = 0;
 
       switch (config.sale) {
         case (#duration(duration)) {
@@ -577,7 +574,7 @@ module {
       return [(1, config.salePrice)];
     };
 
-    func getCurrentDutchAuctionPrice(dutchAuction: RootTypes.DutchAuction) : Nat64 {
+    func getCurrentDutchAuctionPrice(dutchAuction : RootTypes.DutchAuction) : Nat64 {
       let start = if (dutchAuction.target == #publicSale or config.whitelists.size() == 0) {
         config.publicSaleStart;
       } else {
@@ -624,28 +621,34 @@ module {
       };
     };
 
-    func getWhitelistSpotId(whitelist: Types.Whitelist, address: Types.AccountIdentifier) : Types.WhitelistSpotId {
-      whitelist.name # ":" # address
+    func getWhitelistSpotId(whitelist : Types.Whitelist, address : Types.AccountIdentifier) : Types.WhitelistSpotId {
+      whitelist.name # ":" # address;
     };
 
-    func addWhitelistSpot(whitelist: Types.Whitelist, address: Types.AccountIdentifier) {
-      _whitelistSpots.put(getWhitelistSpotId(whitelist, address), false);
+    func addWhitelistSpot(whitelist : Types.Whitelist, address : Types.AccountIdentifier) {
+      let remainingSpots = Option.get(_whitelistSpots.get(getWhitelistSpotId(whitelist, address)), 0);
+      _whitelistSpots.put(getWhitelistSpotId(whitelist, address), remainingSpots + 1);
     };
 
-    func removeWhitelistSpot(whitelist: Types.Whitelist, address: Types.AccountIdentifier) {
-      _whitelistSpots.delete(getWhitelistSpotId(whitelist, address));
+    func removeWhitelistSpot(whitelist : Types.Whitelist, address : Types.AccountIdentifier) {
+      let remainingSpots = Option.get(_whitelistSpots.get(getWhitelistSpotId(whitelist, address)), 0);
+      if (remainingSpots > 0) {
+        _whitelistSpots.put(getWhitelistSpotId(whitelist, address), remainingSpots - 1);
+      } else {
+        _whitelistSpots.delete(getWhitelistSpotId(whitelist, address));
+      };
     };
 
     // get a whitelist that has started, hasn't expired, and hasn't been used by an address
     func getEligibleWhitelist(address : Types.AccountIdentifier, allowNotStarted : Bool) : ?Types.Whitelist {
       for (whitelist in config.whitelists.vals()) {
         let spotId = getWhitelistSpotId(whitelist, address);
-        let spotUsed = Option.get(_whitelistSpots.get(spotId), true);
+        let remainingSpots = Option.get(_whitelistSpots.get(spotId), 0);
         let whitelistStarted = Time.now() >= whitelist.startTime;
         let endTime = Option.get(whitelist.endTime, 0);
         let whitelistNotExpired = Time.now() <= endTime or endTime == 0;
 
-        if (not spotUsed and (allowNotStarted or whitelistStarted) and whitelistNotExpired) {
+        if (remainingSpots > 0 and (allowNotStarted or whitelistStarted) and whitelistNotExpired) {
           return ?whitelist;
         };
       };
